@@ -22,13 +22,16 @@ const checkAuth = async (req, res, next) => {
         return res.redirect('/login.html');
     }
     
+    // データベースからユーザーを取得
     const { data: user, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
+    // エラーが起きたか、ユーザーがDBに存在しない場合（ここが重要）
     if (error || !user) {
+        // 不正なIDや古いIDが入っているクッキーを完全に消去する
         res.clearCookie('sasuty_user_id');
         return res.redirect('/login.html');
     }
@@ -51,6 +54,9 @@ app.post('/api/signup', async (req, res) => {
             .insert([{ username, email, password_hash: hashedPassword }]);
 
         if (error) {
+            if (error.code === '23505') {
+                return res.status(400).send('エラー: そのユーザー名またはメールアドレスは既に登録されています。');
+            }
             return res.status(400).send(`新規登録エラー: ${error.message}`);
         }
         res.redirect('/login.html');
@@ -62,6 +68,10 @@ app.post('/api/signup', async (req, res) => {
 // 【API】ログイン
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).send('ユーザー名とパスワードを入力してください。');
+    }
+
     const { data: user, error } = await supabase
         .from('users')
         .select('*')
@@ -69,15 +79,21 @@ app.post('/api/login', async (req, res) => {
         .maybeSingle();
 
     if (error || !user) {
-        return res.status(400).send('ログインエラー: ユーザーが見つかりません。');
+        return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
     }
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
-        return res.status(400).send('ログインエラー: パスワードが違います。');
+        return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
     }
     
-    res.cookie('sasuty_user_id', user.id, { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 });
+    // クッキーにログインの証拠としてユーザーIDを保存
+    res.cookie('sasuty_user_id', user.id, { 
+        httpOnly: true, 
+        secure: false,
+        maxAge: 1000 * 60 * 60 * 24 
+    });
+    
     res.redirect('/');
 });
 
@@ -96,6 +112,11 @@ app.get('/api/posts', async (req, res) => {
 app.post('/api/posts', checkAuth, async (req, res) => {
     const { content } = req.body;
     if (!content || content.trim() === '') return res.status(400).send('投稿内容が空です。');
+
+    // 念のため再チェック
+    if (!req.user || !req.user.id) {
+        return res.status(401).send('認証エラー: もう一度ログインし直してください。');
+    }
 
     const { error } = await supabase
         .from('posts')
