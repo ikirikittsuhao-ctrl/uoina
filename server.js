@@ -27,14 +27,14 @@ const checkAuth = async (req, res, next) => {
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle(); // single()だと見つからない時にエラーを吐くのでmaybeSingleに変更
 
     if (error || !user) {
         res.clearCookie('sasuty_user_id');
         return res.redirect('/login.html');
     }
     
-    req.user = user; // 後続の処理でユーザー情報を使えるように保持
+    req.user = user; // ユーザー情報をリクエストオブジェクトに保持
     next();
 };
 
@@ -49,12 +49,13 @@ app.post('/api/signup', async (req, res) => {
         // パスワードをハッシュ化（10ソルトハッシュ）
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // 自前のusersテーブルへインサート
+        // 自前のusersテーブルへインサート (.select()を追加して、生成されたIDを取得できるようにする)
         const { data, error } = await supabase
             .from('users')
             .insert([
                 { username, email, password_hash: hashedPassword }
-            ]);
+            ])
+            .select();
 
         if (error) {
             if (error.code === '23505') { // PostgreSQLの重複エラーコード
@@ -63,6 +64,7 @@ app.post('/api/signup', async (req, res) => {
             return res.status(400).send(`新規登録エラー: ${error.message}`);
         }
 
+        // 新規登録成功後、そのままログイン状態にしてメイン画面に飛ばす（または再度ログイン画面へ）
         res.redirect('/login.html');
     } catch (err) {
         res.status(500).send('サーバー内部エラーが発生しました。');
@@ -81,7 +83,7 @@ app.post('/api/login', async (req, res) => {
         .from('users')
         .select('*')
         .eq('username', username)
-        .single();
+        .maybeSingle();
 
     if (error || !user) {
         return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
@@ -123,11 +125,17 @@ app.post('/api/posts', checkAuth, async (req, res) => {
         return res.status(400).send('投稿内容が空です。');
     }
 
+    // 万が一 req.user や id が取れていない場合の防衛策
+    if (!req.user || !req.user.id) {
+        return res.status(401).send('認証エラー: ユーザー情報が正しく取得できませんでした。再ログインしてください。');
+    }
+
+    // postsテーブルへ挿入
     const { error } = await supabase
         .from('posts')
         .insert([
             { 
-                user_id: req.user.id, 
+                user_id: req.user.id,        -- usersテーブルのIDと確実に一致する値を入れる
                 username: req.user.username, 
                 content: content 
             }
@@ -152,5 +160,5 @@ app.get('/', checkAuth, (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`[sasuty] 独自テーブル認証版サーバー起動: http://localhost:${PORT}`);
+    console.log(`[sasuty] 修正版サーバー起動: http://localhost:${PORT}`);
 });
