@@ -1,0 +1,15 @@
+{
+  "name": "sasuty",
+  "version": "1.0.0",
+  "description": "sasuty - Simple SNS with Node.js and Supabase",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
