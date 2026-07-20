@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sasuty - ホーム</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding-left: 70px; }
+        header { background: white; padding: 15px 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 90; }
+        header h1 { margin: 0; color: #1877f2; font-size: 24px; }
+        .logout-btn { color: #65676b; text-decoration: none; font-size: 14px; font-weight: bold; }
+        .logout-btn:hover { color: #1877f2; }
+        .timeline { max-width: 500px; margin: 20px auto; padding: 0 15px; }
+        .post-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; border: 1px solid #e4e6eb; }
+        .post-user { font-weight: bold; color: #1c1e21; margin-bottom: 5px; font-size: 15px; }
+        .post-content { color: #050505; word-break: break-all; font-size: 15px; line-height: 1.4; }
+        .post-time { font-size: 12px; color: #65676b; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- 外部サイドバー読み込み用コンテナ -->
+    <div id="sidebar-container"></div>
+
+    <header>
+        <h1>sasuty</h1>
+        <a href="/api/logout" class="logout-btn">ログアウト</a>
+    </header>
+
+    <div class="timeline" id="timeline">
+        <p style="text-align:center; color:#65676b;">読み込み中...</p>
+    </div>
+
+    <script>
+        // サイドバーパーツをインクルード
+        async function includeSidebar() {
+            try {
+                const res = await fetch('/layout/sidebar.html');
+                if (res.ok) {
+                    document.getElementById('sidebar-container').innerHTML = await res.text();
+                } else {
+                    console.error('サイドバーの取得に失敗しました');
+                }
+            } catch (err) {
+                console.error('通信エラー:', err);
+            }
+        }
+
+        // 投稿データを取得してレンダリング
+        async function loadPosts() {
+            try {
+                const res = await fetch('/api/posts');
+                if (!res.ok) throw new Error('タイムラインの取得失敗');
+                
+                const posts = await res.json();
+                const timeline = document.getElementById('timeline');
+                
+                if (posts.length === 0) {
+                    timeline.innerHTML = '<p style="text-align:center; color:#65676b; margin-top: 40px;">まだ投稿がありません。</p>';
+                    return;
+                }
+
+                timeline.innerHTML = posts.map(post => {
+                    // 安全のためにHTML文字を簡易エスケープ
+                    const safeContent = post.content
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;")
+                        .replace(/'/g, "&#039;")
+                        .replace(/\n/g, '<br>');
+
+                    return `
+                        <div class="post-card">
+                            <div class="post-user">@${post.username}</div>
+                            <div class="post-content">${safeContent}</div>
+                            <div class="post-time">${new Date(post.created_at).toLocaleString('ja-JP')}</div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                document.getElementById('timeline').innerHTML = '<p style="text-align:center; color:red;">データの読み込みに失敗しました。</p>';
+            }
+        }
+
+        // 初期実行
+        includeSidebar();
+        loadPosts();
+    </script>
+</body>
+</html>
