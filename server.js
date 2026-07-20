@@ -15,30 +15,29 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/layout', express.static(path.join(__dirname, 'layout')));
 
-// 【カスタム認証ミドルウェア】クッキーのユーザーIDからユーザー実在チェック
+// 【カスタム認証ミドルウェア】
 const checkAuth = async (req, res, next) => {
     const userId = req.cookies.sasuty_user_id;
     if (!userId) {
         return res.redirect('/login.html');
     }
     
-    // データベースからユーザーを取得
     const { data: user, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .maybeSingle(); // single()だと見つからない時にエラーを吐くのでmaybeSingleに変更
+        .maybeSingle();
 
     if (error || !user) {
         res.clearCookie('sasuty_user_id');
         return res.redirect('/login.html');
     }
     
-    req.user = user; // ユーザー情報をリクエストオブジェクトに保持
+    req.user = user;
     next();
 };
 
-// 【API】独自 新規登録 (usersテーブルへ直接保存)
+// 【API】新規登録
 app.post('/api/signup', async (req, res) => {
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
@@ -46,39 +45,23 @@ app.post('/api/signup', async (req, res) => {
     }
 
     try {
-        // パスワードをハッシュ化（10ソルトハッシュ）
         const hashedPassword = await bcrypt.hash(password, 10);
-
-        // 自前のusersテーブルへインサート (.select()を追加して、生成されたIDを取得できるようにする)
-        const { data, error } = await supabase
+        const { error } = await supabase
             .from('users')
-            .insert([
-                { username, email, password_hash: hashedPassword }
-            ])
-            .select();
+            .insert([{ username, email, password_hash: hashedPassword }]);
 
         if (error) {
-            if (error.code === '23505') { // PostgreSQLの重複エラーコード
-                return res.status(400).send('エラー: そのユーザー名またはメールアドレスは既に登録されています。');
-            }
             return res.status(400).send(`新規登録エラー: ${error.message}`);
         }
-
-        // 新規登録成功後、そのままログイン状態にしてメイン画面に飛ばす（または再度ログイン画面へ）
         res.redirect('/login.html');
     } catch (err) {
         res.status(500).send('サーバー内部エラーが発生しました。');
     }
 });
 
-// 【API】独自 ログイン
+// 【API】ログイン
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).send('ユーザー名とパスワードを入力してください。');
-    }
-
-    // ユーザー名でデータベースを検索
     const { data: user, error } = await supabase
         .from('users')
         .select('*')
@@ -86,64 +69,43 @@ app.post('/api/login', async (req, res) => {
         .maybeSingle();
 
     if (error || !user) {
-        return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
+        return res.status(400).send('ログインエラー: ユーザーが見つかりません。');
     }
 
-    // パスワードの照合
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
-        return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
+        return res.status(400).send('ログインエラー: パスワードが違います。');
     }
     
-    // クッキーにログインの証拠としてユーザーIDを保存
-    res.cookie('sasuty_user_id', user.id, {
-        httpOnly: true,
-        secure: false,
-        maxAge: 1000 * 60 * 60 * 24 // 1日間
-    });
-    
+    res.cookie('sasuty_user_id', user.id, { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 });
     res.redirect('/');
 });
 
-// 【API】投稿一覧の取得
+// 【API】投稿一覧取得
 app.get('/api/posts', async (req, res) => {
     const { data, error } = await supabase
         .from('posts')
         .select('*')
         .order('created_at', { ascending: false });
     
-    if (error) {
-        return res.status(500).json({ error: error.message });
-    }
+    if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });
 
-// 【API】新規投稿の作成
+// 【API】新規投稿作成
 app.post('/api/posts', checkAuth, async (req, res) => {
     const { content } = req.body;
-    if (!content || content.trim() === '') {
-        return res.status(400).send('投稿内容が空です。');
-    }
+    if (!content || content.trim() === '') return res.status(400).send('投稿内容が空です。');
 
-    // 万が一 req.user や id が取れていない場合の防衛策
-    if (!req.user || !req.user.id) {
-        return res.status(401).send('認証エラー: ユーザー情報が正しく取得できませんでした。再ログインしてください。');
-    }
-
-    // postsテーブルへ挿入
     const { error } = await supabase
         .from('posts')
-        .insert([
-            { 
-                user_id: req.user.id,        -- usersテーブルのIDと確実に一致する値を入れる
-                username: req.user.username, 
-                content: content 
-            }
-        ]);
+        .insert([{ 
+            user_id: req.user.id, 
+            username: req.user.username, 
+            content: content 
+        }]);
 
-    if (error) {
-        return res.status(500).send(`投稿エラー: ${error.message}`);
-    }
+    if (error) return res.status(500).send(`投稿エラー: ${error.message}`);
     res.redirect('/');
 });
 
@@ -153,12 +115,11 @@ app.get('/api/logout', (req, res) => {
     res.redirect('/login.html');
 });
 
-// ルートアクセス制御
 app.get('/', checkAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`[sasuty] 修正版サーバー起動: http://localhost:${PORT}`);
+    console.log(`サーバー起動: http://localhost:${PORT}`);
 });
