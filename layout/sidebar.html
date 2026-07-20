@@ -1,55 +1,306 @@
-<div class="sidebar-icons">
-    <!-- ホームボタン (SVG) -->
-    <a href="/" class="sidebar-btn" title="ホーム">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-        </svg>
-    </a>
+<!-- layout/sidebar.html -->
+<nav class="x-sidebar">
+    <div class="sidebar-inner">
+        <!-- X ロゴ -->
+        <a href="/" class="sidebar-logo" title="ホーム">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="x-icon">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path>
+            </svg>
+        </a>
 
-    <!-- 新規投稿ボタン (SVG) -->
-    <a href="/post.html" class="sidebar-btn" title="投稿する">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-    </a>
+        <!-- ナビゲーションリンク -->
+        <div class="nav-links">
+            <a href="/" class="nav-item" title="ホーム">
+                <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 9c-2.209 0-4 1.791-4 4s1.791 4 4 4 4-1.791 4-4-1.791-4-4-4zm0 6c-1.103 0-2-.897-2-2s.897-2 2-2 2 .897 2 2-.897 2-2 2z"></path><path d="M20 10.414V20c0 .553-.447 1-1 1h-5v-6h-4v6H5c-.553 0-1-.447-1-1v-9.586l7.293-6.564c.391-.352 1.023-.352 1.414 0L20 10.414z"></path></svg>
+                <span class="nav-label">ホーム</span>
+            </a>
+
+            <a href="/profile.html" class="nav-item" title="プロフィール">
+                <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path></svg>
+                <span class="nav-label">プロフィール</span>
+            </a>
+
+            <!-- 設定ボタン -->
+            <button id="open-settings-btn" class="nav-item btn-reset" title="設定">
+                <svg viewBox="0 0 24 24" class="nav-icon"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"></path></svg>
+                <span class="nav-label">設定</span>
+            </button>
+        </div>
+
+        <!-- 投稿ボタン -->
+        <a href="/post.html" class="post-btn-sidebar" title="ポストする">
+            <svg viewBox="0 0 24 24" class="post-icon-mobile"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path></svg>
+            <span class="post-label-desktop">ポストする</span>
+        </a>
+    </div>
+</nav>
+
+<!-- 設定モーダル -->
+<div id="settings-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>設定</h3>
+            <button id="close-settings-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <a href="/api/logout" class="logout-menu-item">
+                <svg viewBox="0 0 24 24" class="menu-icon"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"></path></svg>
+                ログアウト
+            </a>
+        </div>
+    </div>
 </div>
 
 <style>
-    .sidebar-icons {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 70px;
-        background-color: #ffffff;
-        border-right: 1px solid #e4e6eb;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding-top: 30px;
-        gap: 25px;
-        box-sizing: border-box;
-        z-index: 100;
+/* CSS変数とOSシステムカラーの連動設定 */
+:root {
+    --bg-color: #ffffff;
+    --text-color: #0f1419;
+    --sub-text-color: #536471;
+    --border-color: #eff3f4;
+    --hover-bg: rgba(15, 20, 25, 0.1);
+    --accent-color: #1d9bf0;
+    --modal-bg: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-color: #000000;
+        --text-color: #e7e9ea;
+        --sub-text-color: #71767b;
+        --border-color: #2f3336;
+        --hover-bg: rgba(239, 243, 244, 0.1);
+        --accent-color: #1d9bf0;
+        --modal-bg: #16181c;
     }
-    .sidebar-btn {
-        width: 44px;
-        height: 44px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        border-radius: 8px;
-        color: #65676b;
-        transition: all 0.2s;
-        text-decoration: none;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.x-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 88px;
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 12px;
+    box-sizing: border-box;
+    z-index: 1000;
+    background-color: var(--bg-color);
+}
+
+@media (min-width: 1280px) {
+    .x-sidebar {
+        width: 275px;
+        align-items: flex-start;
     }
-    .sidebar-btn:hover {
-        background-color: #f0f2f5;
-        color: #1877f2;
+}
+
+.sidebar-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+}
+
+.sidebar-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    color: var(--text-color);
+    margin: 2px 0 4px 0;
+}
+.sidebar-logo:hover {
+    background-color: var(--hover-bg);
+}
+.x-icon {
+    width: 30px;
+    height: 30px;
+    fill: currentColor;
+}
+
+.nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.btn-reset {
+    background: none;
+    border: none;
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-radius: 9999px;
+    color: var(--text-color);
+    text-decoration: none;
+    transition: background-color 0.2s;
+    width: fit-content;
+}
+.nav-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.nav-icon {
+    width: 26px;
+    height: 26px;
+    fill: currentColor;
+}
+
+.nav-label {
+    display: none;
+    font-size: 20px;
+    margin-left: 20px;
+    margin-right: 16px;
+}
+
+@media (min-width: 1280px) {
+    .nav-label {
+        display: inline;
     }
-    .sidebar-btn svg {
-        width: 26px;
-        height: 26px;
+}
+
+.post-btn-sidebar {
+    margin-top: 16px;
+    background-color: var(--accent-color);
+    color: #ffffff;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-weight: bold;
+    height: 52px;
+    width: 52px;
+    transition: opacity 0.2s;
+}
+.post-btn-sidebar:hover {
+    opacity: 0.9;
+}
+
+.post-icon-mobile {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+}
+
+.post-label-desktop {
+    display: none;
+    font-size: 17px;
+}
+
+@media (min-width: 1280px) {
+    .post-btn-sidebar {
+        width: 100%;
     }
+    .post-icon-mobile {
+        display: none;
+    }
+    .post-label-desktop {
+        display: inline;
+    }
+}
+
+/* モーダルスタイル */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+.modal-backdrop.hidden {
+    display: none;
+}
+
+.modal-content {
+    background-color: var(--modal-bg);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 320px;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.modal-body {
+    padding: 12px 0;
+}
+
+.logout-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    color: #f4212e;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 15px;
+}
+.logout-menu-item:hover {
+    background-color: var(--hover-bg);
+}
+.menu-icon {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const openBtn = document.getElementById('open-settings-btn');
+    const closeBtn = document.getElementById('close-settings-btn');
+    const modal = document.getElementById('settings-modal');
+
+    if (openBtn && closeBtn && modal) {
+        openBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+        closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.add('hidden');
+        });
+    }
+});
+</script>
