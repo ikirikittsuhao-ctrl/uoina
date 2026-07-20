@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sasuty - 新しい投稿</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; padding-left: 70px; box-sizing: border-box; }
+        .post-container { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 100%; max-width: 450px; border: 1px solid #e4e6eb; }
+        h3 { margin-top: 0; margin-bottom: 15px; color: #1c1e21; font-size: 18px; }
+        textarea { width: 100%; height: 140px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; resize: none; box-sizing: border-box; font-size: 16px; font-family: inherit; }
+        textarea:focus { border-color: #1877f2; outline: none; }
+        .actions { display: flex; justify-content: space-between; margin-top: 15px; }
+        .back-btn { background: #e4e6eb; color: #050505; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center; }
+        .back-btn:hover { background: #d8dadf; }
+        .submit-btn { background: #1877f2; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; }
+        .submit-btn:hover { background: #166fe5; }
+    </style>
+</head>
+<body>
+
+    <!-- 外部サイドバー読み込み用コンテナ -->
+    <div id="sidebar-container"></div>
+
+    <div class="post-container">
+        <h3>新しい投稿を作成</h3>
+        <form action="/api/posts" method="POST">
+            <textarea name="content" placeholder="いまどうしてる？" required autofocus></textarea>
+            <div class="actions">
+                <a href="/" class="back-btn">キャンセル</a>
+                <button type="submit" class="submit-btn">投稿する</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // サイドバーパーツをインクルード
+        async function includeSidebar() {
+            try {
+                const res = await fetch('/layout/sidebar.html');
+                if (res.ok) {
+                    document.getElementById('sidebar-container').innerHTML = await res.text();
+                }
+            } catch (err) {
+                console.error('サイドバーの取得に失敗しました', err);
+            }
+        }
+        includeSidebar();
+    </script>
+</body>
+</html>
