@@ -40,7 +40,7 @@ const checkAuth = async (req, res, next) => {
     next();
 };
 
-// 【API】新規登録
+// 【API】新規登録 (自動ログインするように修正)
 app.post('/api/signup', async (req, res) => {
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
@@ -49,9 +49,13 @@ app.post('/api/signup', async (req, res) => {
 
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        const { error } = await supabase
+        
+        // .select() を末尾につけて、生成されたばかりの正しいUUIDをDBから返してもらう
+        const { data: newUser, error } = await supabase
             .from('users')
-            .insert([{ username, email, password_hash: hashedPassword }]);
+            .insert([{ username, email, password_hash: hashedPassword }])
+            .select()
+            .maybeSingle();
 
         if (error) {
             if (error.code === '23505') {
@@ -59,7 +63,20 @@ app.post('/api/signup', async (req, res) => {
             }
             return res.status(400).send(`新規登録エラー: ${error.message}`);
         }
-        res.redirect('/login.html');
+
+        if (!newUser) {
+            return res.status(500).send('ユーザーデータの生成に失敗しました。');
+        }
+
+        // 登録完了後、別のログイン手順を踏ませず、その正しいUUIDで即クッキーを焼いてログイン状態にする
+        res.cookie('sasuty_user_id', newUser.id, { 
+            httpOnly: true, 
+            secure: false,
+            maxAge: 1000 * 60 * 60 * 24 
+        });
+
+        // ログイン画面ではなくホーム画面に直接リダイレクト
+        res.redirect('/');
     } catch (err) {
         res.status(500).send('サーバー内部エラーが発生しました。');
     }
