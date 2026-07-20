@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プロフィール / X</title>
+    <style>
+        /* カラー変数の定義（ダーク/ライトモード非依存で安定動作するように基本値を設定） */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #0f1419;
+            --sub-text-color: #536471;
+            --border-color: #eff3f4;
+            --hover-bg: rgba(15, 20, 25, 0.1);
+            --accent-color: #1d9bf0;
+            --modal-bg: rgba(0, 0, 0, 0.4);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #000000;
+                --text-color: #e7e9ea;
+                --sub-text-color: #71767b;
+                --border-color: #2f3336;
+                --hover-bg: rgba(239, 243, 244, 0.1);
+                --modal-bg: rgba(91, 112, 131, 0.4);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding-left: 88px;
+        }
+
+        @media (min-width: 1280px) {
+            body { padding-left: 275px; }
+        }
+
+        /* モバイル対応：画面幅が狭い場合のパディング解除 */
+        @media (max-width: 688px) {
+            body { padding-left: 0; }
+        }
+
+        .main-layout {
+            max-width: 600px;
+            margin: 0 auto;
+            border-left: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            min-height: 100vh;
+        }
+
+        .profile-banner {
+            height: 200px;
+            background-color: #cfd9de;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .profile-header {
+            padding: 12px 16px;
+            position: relative;
+        }
+
+        .avatar-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: -60px;
+            margin-bottom: 16px;
+        }
+
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid var(--bg-color);
+            background-color: #ccc;
+            object-fit: cover;
+        }
+
+        .edit-profile-btn {
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-color);
+            font-weight: bold;
+            padding: 8px 16px;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .edit-profile-btn:hover { background-color: var(--hover-bg); }
+
+        .user-info h2 { margin: 0; font-size: 20px; font-weight: 800; }
+        .username-label { color: var(--sub-text-color); font-size: 15px; }
+
+        .bio { margin: 12px 0; font-size: 15px; line-height: 1.4; word-break: break-word; }
+
+        .meta-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            color: var(--sub-text-color);
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .meta-info a { color: var(--accent-color); text-decoration: none; }
+        .meta-info a:hover { text-decoration: underline; }
+
+        .follow-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: var(--sub-text-color);
+            margin-bottom: 16px;
+        }
+
+        .follow-stats span { font-weight: bold; color: var(--text-color); }
+
+        /* タブナビゲーション */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab-item {
+            flex: 1;
+            text-align: center;
+            padding: 16px 0;
+            font-weight: bold;
+            color: var(--sub-text-color);
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.2s ease;
+        }
+
+        .tab-item:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .tab-item.active {
+            color: var(--text-color);
+        }
+
+        .tab-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 56px;
+            height: 4px;
+            background-color: var(--accent-color);
+            border-radius: 9999px;
+        }
+
+        /* 編集モーダルスタイル修正 */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--modal-bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+
+        .modal-backdrop.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .modal-content {
+            background-color: var(--bg-color);
+            width: 100%;
+            max-width: 500px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--text-color);
+            cursor: pointer;
+            padding: 0 8px;
+            border-radius: 50%;
+        }
+
+        .close-btn:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .modal-form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 16px;
+        }
+
+        .modal-form label {
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--sub-text-color);
+            margin-bottom: -6px;
+        }
+
+        .modal-form input, .modal-form textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-size: 15px;
+            outline: none;
+        }
+
+        .modal-form input:focus, .modal-form textarea:focus {
+            border-color: var(--accent-color);
+        }
+
+        .save-btn {
+            background-color: var(--text-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 10px;
+            border-radius: 9999px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: opacity 0.2s ease;
+        }
+
+        .save-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar-container"></div>
+
+    <div class="main-layout">
+        <!-- ヘッダーバナー -->
+        <div id="banner-img" class="profile-banner"></div>
+
+        <div class="profile-header">
+            <div class="avatar-container">
+                <img id="avatar-img" class="profile-avatar" src="" alt="avatar">
+                <button id="edit-btn" class="edit-profile-btn" onclick="openEditModal()" style="display:none;">プロフィールを編集</button>
+            </div>
+
+            <div class="user-info">
+                <h2 id="display-username">--</h2>
+                <div class="username-label" id="display-handle">@--</div>
+            </div>
+
+            <div class="bio" id="display-bio"></div>
+
+            <div class="meta-info">
+                <span id="display-birthday"></span>
+                <span id="display-website"></span>
+                <span id="display-created"></span>
+            </div>
+
+            <div class="follow-stats">
+                <div><span id="following-count">0</span> フォロー中</div>
+                <div><span id="followers-count">0</span> フォロワー</div>
+            </div>
+        </div>
+
+        <!-- タブ -->
+        <div class="tabs">
+            <div class="tab-item active">ポスト</div>
+            <div class="tab-item">返信</div>
+            <div class="tab-item">メディア</div>
+            <div class="tab-item">いいね</div>
+        </div>
+
+        <!-- 投稿一覧 -->
+        <div id="user-timeline"></div>
+    </div>
+
+    <!-- プロフィール編集モーダル -->
+    <div id="edit-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>プロフィールを編集</h3>
+                <button type="button" class="close-btn" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form action="/api/profile/update" method="POST" class="modal-form">
+                <label for="input-avatar">アイコン画像 URL</label>
+                <input type="url" name="avatar_url" id="input-avatar">
+                
+                <label for="input-banner">ヘッダーバナー URL</label>
+                <input type="url" name="banner_url" id="input-banner">
+
+                <label for="input-bio">自己紹介</label>
+                <textarea name="bio" id="input-bio" rows="3"></textarea>
+
+                <label for="input-website">ウェブサイト</label>
+                <input type="text" name="website" id="input-website">
+
+                <label for="input-birthday">生年月日</label>
+                <input type="text" name="birthday" id="input-birthday" placeholder="2000年1月1日">
+
+                <button type="submit" class="save-btn">保存</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // XSSサニタイズ用の補助関数
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        async function includeSidebar() {
+            try {
+                const res = await fetch('/layout/sidebar.html');
+                if (res.ok) document.getElementById('sidebar-container').innerHTML = await res.text();
+            } catch (err) {}
+        }
+
+        async function loadProfile() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                let username = urlParams.get('user');
+
+                // 自分のユーザー情報を取得
+                const meRes = await fetch('/api/me');
+                const myData = await meRes.json();
+
+                if (!username) username = myData.username;
+
+                const res = await fetch(`/api/users/${encodeURIComponent(username)}`);
+                if (!res.ok) {
+                    alert('ユーザーが存在しません');
+                    return;
+                }
+
+                const { user, posts } = await res.json();
+
+                // 自分のプロフィールの場合は編集ボタンを表示
+                if (user.id === myData.id) {
+                    document.getElementById('edit-btn').style.display = 'block';
+                    document.getElementById('input-avatar').value = user.avatar_url || '';
+                    document.getElementById('input-banner').value = user.banner_url || '';
+                    document.getElementById('input-bio').value = user.bio || '';
+                    document.getElementById('input-website').value = user.website || '';
+                    document.getElementById('input-birthday').value = user.birthday || '';
+                }
+
+                // 画像のプロキシ表示処理
+                const avatarSrc = user.avatar_url
+                    ? `/api/proxy-image?url=${encodeURIComponent(user.avatar_url)}`
+                    : 'https://abs.twimg.com/sticky/default_profile_images/default_profile_400x400.png';
+
+                document.getElementById('avatar-img').src = avatarSrc;
+
+                if (user.banner_url) {
+                    const bannerSrc = `/api/proxy-image?url=${encodeURIComponent(user.banner_url)}`;
+                    document.getElementById('banner-img').style.backgroundImage = `url('${bannerSrc}')`;
+                }
+
+                document.getElementById('display-username').textContent = user.username;
+                document.getElementById('display-handle').textContent = `@${user.username}`;
+                document.getElementById('display-bio').textContent = user.bio || '';
+
+                if (user.birthday) {
+                    document.getElementById('display-birthday').textContent = `🎈 誕生日: ${user.birthday}`;
+                }
+                if (user.website) {
+                    const safeWeb = escapeHTML(user.website);
+                    document.getElementById('display-website').innerHTML = `🔗 <a href="${safeWeb}" target="_blank" rel="noopener noreferrer">${safeWeb}</a>`;
+                }
+                if (user.created_at) {
+                    document.getElementById('display-created').textContent = `📅 ${new Date(user.created_at).toLocaleDateString('ja-JP')}からSasutyを利用しています`;
+                }
+
+                // タイムライン描画
+                const timeline = document.getElementById('user-timeline');
+                if (!posts || posts.length === 0) {
+                    timeline.innerHTML = '<p style="text-align:center; color: var(--sub-text-color); padding: 20px;">まだ投稿がありません。</p>';
+                    return;
+                }
+
+                timeline.innerHTML = posts.map(post => `
+                    <div style="padding: 16px; border-bottom: 1px solid var(--border-color);">
+                        <div style="font-weight: bold;">@${escapeHTML(user.username)}</div>
+                        <div style="margin-top: 4px; white-space: pre-wrap;">${escapeHTML(post.content)}</div>
+                        <div style="color: var(--sub-text-color); font-size: 12px; margin-top: 8px;">
+                            ${new Date(post.created_at).toLocaleString('ja-JP')} · 閲覧数 ${post.views_count || 0}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error("プロフィール読み込み中にエラーが発生しました:", err);
+            }
+        }
+
+        function openEditModal() {
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
+        }
+
+        includeSidebar();
+        loadProfile();
+    </script>
+</body>
+</html>
