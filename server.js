@@ -3,12 +3,12 @@ const { createClient } = require('@supabase/supabase-js');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcrypt');
 const path = require('path');
+const https = require('https');
+const http = require('http');
 require('dotenv').config();
 
-// 環境変数のチェック
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
     console.error('【致命的なエラー】環境変数 SUPABASE_URL または SUPABASE_ANON_KEY が設定されていません。');
-    console.error('Renderの「Environment」設定、またはローカルの .env ファイルを確認してください。');
     process.exit(1);
 }
 
@@ -22,453 +22,237 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/layout', express.static(path.join(__dirname, 'layout')));
 
-// 【カスタム認証ミドルウェア】
+// 【認証ミドルウェア】
 const checkAuth = async (req, res, next) => {
     const userId = req.cookies.sasuty_user_id;
-    
-    if (!userId) {
-        console.warn('❌ クッキーに sasuty_user_id がありません');
-        return res.redirect('/login.html');
-    }
-    
-    console.log(`✅ クッキーから取得したID: ${userId}`);
-    
+    if (!userId) return res.redirect('/login.html');
+
     const { data: usersArray, error } = await supabase
         .from('users')
-        .select('id, username, email, created_at')
+        .select('*')
         .eq('id', userId);
 
-    if (error) {
-        console.error(`❌ DB照合エラー:`, error);
+    if (error || !usersArray || usersArray.length === 0) {
         res.clearCookie('sasuty_user_id');
         return res.redirect('/login.html');
     }
 
-    if (!usersArray || usersArray.length === 0) {
-        console.warn(`❌ ID "${userId}" に一致するユーザーがDBに見つかりません`);
-        res.clearCookie('sasuty_user_id');
-        return res.redirect('/login.html');
-    }
-    
     req.user = usersArray[0];
-    console.log(`✅ 認証成功: ユーザー ${req.user.username} (ID: ${req.user.id})`);
     next();
 };
+
+// 【画像プロキシ機能】CORS対策・セキュアな画像の読み込み用
+app.get('/api/proxy-image', (req, res) => {
+    const imageUrl = req.query.url;
+    if (!imageUrl) return res.status(400).send('URL is required');
+
+    try {
+        const parsedUrl = new URL(imageUrl);
+        const protocol = parsedUrl.protocol === 'https:' ? https : http;
+
+        protocol.get(imageUrl, (response) => {
+            if (response.statusCode !== 200) {
+                return res.status(response.statusCode).send('Failed to fetch image');
+            }
+            res.setHeader('Content-Type', response.headers['content-type'] || 'image/jpeg');
+            response.pipe(res);
+        }).on('error', () => {
+            res.status(500).send('Image fetch error');
+        });
+    } catch (e) {
+        res.status(400).send('Invalid URL');
+    }
+});
 
 // 【API】新規登録
 app.post('/api/signup', async (req, res) => {
     const { username, email, password } = req.body;
-    if (!username || !email || !password) {
-        return res.status(400).send('すべての項目を入力してください。');
-    }
+    if (!username || !email || !password) return res.status(400).send('すべての項目を入力してください。');
 
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        
         const { data, error } = await supabase
             .from('users')
             .insert([{ username, email, password_hash: hashedPassword }])
-            .select('id, username, email');
+            .select('*');
 
-        if (error) {
-            console.error('❌ 登録エラー:', error);
-            if (error.code === '23505') {
-                return res.status(400).send('エラー: そのユーザー名またはメールアドレスは既に登録されています。');
-            }
-            return res.status(400).send(`新規登録エラー: ${error.message}`);
-        }
-
-        if (!data || data.length === 0) {
-            console.error('❌ 登録後のデータ取得失敗');
-            return res.status(500).send('ユーザーデータの登録、またはIDの取得に失敗しました。');
-        }
-
-        const registeredUser = data[0];
-        console.log(`✅ 新規ユーザー登録完了: ${registeredUser.username} (ID: ${registeredUser.id})`);
-
-        // ✅ 登録が確実に反映されるまで待機
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // 🔍 登録直後に同じIDで再度照合
-        const { data: verifyData, error: verifyError } = await supabase
-            .from('users')
-            .select('id, username')
-            .eq('id', registeredUser.id);
-
-        if (verifyError || !verifyData || verifyData.length === 0) {
-            console.error('❌ 登録直後の照合失敗 - ユーザーがDB上に見当たりません');
-            return res.status(500).send('ユーザー登録の確認に失敗しました。もう一度お試しください。');
-        }
-
-        console.log(`✅ 登録検証成功: ユーザーはDBに確実に存在`);
-
-        res.cookie('sasuty_user_id', registeredUser.id, { 
-            httpOnly: true, 
-            secure: false,
-            maxAge: 1000 * 60 * 60 * 24,
+        if (error) return res.status(400).send(`登録エラー: ${error.message}`);
+        
+        res.cookie('sasuty_user_id', data[0].id, {
+            httpOnly: true,
+            maxAge: 1000 * 60 * 60 * 24 * 30,
             sameSite: 'Lax'
         });
-
         res.redirect('/');
     } catch (err) {
-        console.error('❌ サーバー内部エラー:', err);
-        res.status(500).send('サーバー内部エラーが発生しました。');
+        res.status(500).send('サーバーエラーが発生しました。');
     }
 });
 
 // 【API】ログイン
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).send('ユーザー名とパスワードを入力してください。');
-    }
+    if (!username || !password) return res.status(400).send('入力してください。');
 
     const { data: usersArray, error } = await supabase
         .from('users')
-        .select('id, username, password_hash')
+        .select('*')
         .eq('username', username);
 
-    if (error) {
-        console.error('❌ ユーザー検索エラー:', error);
-        return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
-    }
-
-    if (!usersArray || usersArray.length === 0) {
-        console.warn(`❌ ユーザー名 "${username}" が見つかりません`);
-        return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
+    if (error || !usersArray || usersArray.length === 0) {
+        return res.status(400).send('ユーザー名またはパスワードが違います。');
     }
 
     const user = usersArray[0];
-
     const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) {
-        console.warn(`❌ パスワード不一致: ${username}`);
-        return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
-    }
-    
-    console.log(`✅ ログイン成功: ${username} (ID: ${user.id})`);
-    
-    res.cookie('sasuty_user_id', user.id, { 
-        httpOnly: true, 
-        secure: false,
-        maxAge: 1000 * 60 * 60 * 24,
+    if (!match) return res.status(400).send('ユーザー名またはパスワードが違います。');
+
+    res.cookie('sasuty_user_id', user.id, {
+        httpOnly: true,
+        maxAge: 1000 * 60 * 60 * 24 * 30,
         sameSite: 'Lax'
     });
-    
     res.redirect('/');
 });
 
-// 【API】投稿一覧取得（いいね・リポスト情報付き）
+// 【API】現在ログイン中のユーザー情報取得
+app.get('/api/me', checkAuth, (req, res) => {
+    const { password_hash, ...userInfo } = req.user;
+    res.json(userInfo);
+});
+
+// 【API】投稿一覧取得 (閲覧数の加算処理も含む)
 app.get('/api/posts', checkAuth, async (req, res) => {
-    try {
-        const { data: posts, error } = await supabase
-            .from('posts')
-            .select(`
-                id,
-                user_id,
-                username,
-                content,
-                created_at,
-                view_count,
-                repost_count,
-                like_count
-            `)
-            .order('created_at', { ascending: false });
-        
-        if (error) {
-            console.error('❌ 投稿一覧取得エラー:', error);
-            return res.status(500).json({ error: error.message });
+    const currentUserId = req.user.id;
+
+    // 投稿と投稿者情報を取得
+    const { data: posts, error } = await supabase
+        .from('posts')
+        .select(`
+            *,
+            users:user_id (id, username, avatar_url)
+        `)
+        .order('created_at', { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    // 自分のいいね・リポスト状態の確認
+    const { data: myLikes } = await supabase.from('likes').select('post_id').eq('user_id', currentUserId);
+    const { data: myReposts } = await supabase.from('reposts').select('post_id').eq('user_id', currentUserId);
+
+    const likedPostIds = new Set((myLikes || []).map(l => l.post_id));
+    const repostedPostIds = new Set((myReposts || []).map(r => r.post_id));
+
+    // タイムライン取得に伴い閲覧数を+1（バックグラウンドで一括更新）
+    const postIds = posts.map(p => p.id);
+    if (postIds.length > 0) {
+        for (let p of posts) {
+            await supabase.from('posts').update({ views_count: (p.views_count || 0) + 1 }).eq('id', p.id);
         }
-
-        // 現在のユーザーが各投稿にいいねしているか、リポストしているかを確認
-        const postsWithUserState = await Promise.all(posts.map(async (post) => {
-            const { data: likeData } = await supabase
-                .from('likes')
-                .select('id')
-                .eq('post_id', post.id)
-                .eq('user_id', req.user.id);
-
-            const { data: repostData } = await supabase
-                .from('reposts')
-                .select('id')
-                .eq('post_id', post.id)
-                .eq('user_id', req.user.id);
-
-            return {
-                ...post,
-                is_liked: likeData && likeData.length > 0,
-                is_reposted: repostData && repostData.length > 0
-            };
-        }));
-
-        res.json(postsWithUserState);
-    } catch (err) {
-        console.error('❌ エラー:', err);
-        res.status(500).json({ error: 'Internal server error' });
     }
+
+    const formattedPosts = posts.map(post => ({
+        ...post,
+        views_count: (post.views_count || 0) + 1,
+        isLiked: likedPostIds.has(post.id),
+        isReposted: repostedPostIds.has(post.id)
+    }));
+
+    res.json(formattedPosts);
 });
 
 // 【API】新規投稿作成
 app.post('/api/posts', checkAuth, async (req, res) => {
     const { content } = req.body;
-    if (!content || content.trim() === '') {
-        return res.status(400).send('投稿内容が空です。');
-    }
+    if (!content || !content.trim()) return res.status(400).send('投稿内容が空です。');
 
-    const userId = req.user.id;
-    const username = req.user.username;
-
-    console.log(`📝 投稿試行: user_id=${userId}, username=${username}`);
-
-    const { data, error } = await supabase
+    const { error } = await supabase
         .from('posts')
-        .insert([{ 
-            user_id: userId, 
-            username: username, 
-            content: content,
-            view_count: 0,
-            repost_count: 0,
-            like_count: 0
-        }])
-        .select('id, user_id');
+        .insert([{ user_id: req.user.id, username: req.user.username, content }]);
 
-    if (error) {
-        console.error(`❌ 投稿エラー:`, error);
-        return res.status(500).send(`投稿エラー: ${error.message}`);
-    }
-
-    console.log(`✅ 投稿作成完了: ID=${data[0].id}`);
+    if (error) return res.status(500).send(`投稿エラー: ${error.message}`);
     res.redirect('/');
 });
 
-// 【API】いいね追加
-app.post('/api/posts/:postId/like', checkAuth, async (req, res) => {
-    const { postId } = req.params;
+// 【API】いいね Toggle
+app.post('/api/posts/:id/like', checkAuth, async (req, res) => {
+    const postId = req.params.id;
     const userId = req.user.id;
 
-    console.log(`❤️ いいね試行: post_id=${postId}, user_id=${userId}`);
+    const { data: existing } = await supabase.from('likes').select('id').eq('post_id', postId).eq('user_id', userId).single();
 
-    // いいねを追加
-    const { error: insertError } = await supabase
-        .from('likes')
-        .insert([{ post_id: postId, user_id: userId }]);
-
-    if (insertError) {
-        if (insertError.code === '23505') {
-            return res.status(400).json({ error: 'すでにいいねしています' });
-        }
-        console.error('❌ いいね追加エラー:', insertError);
-        return res.status(500).json({ error: insertError.message });
+    if (existing) {
+        await supabase.from('likes').delete().eq('id', existing.id);
+        const { data: post } = await supabase.from('posts').select('likes_count').eq('id', postId).single();
+        const newCount = Math.max(0, (post.likes_count || 1) - 1);
+        await supabase.from('posts').update({ likes_count: newCount }).eq('id', postId);
+        res.json({ liked: false, likes_count: newCount });
+    } else {
+        await supabase.from('likes').insert([{ post_id: postId, user_id: userId }]);
+        const { data: post } = await supabase.from('posts').select('likes_count').eq('id', postId).single();
+        const newCount = (post.likes_count || 0) + 1;
+        await supabase.from('posts').update({ likes_count: newCount }).eq('id', postId);
+        res.json({ liked: true, likes_count: newCount });
     }
-
-    // いいね数をインクリメント
-    const { error: updateError } = await supabase
-        .from('posts')
-        .update({ like_count: supabase.raw('like_count + 1') })
-        .eq('id', postId);
-
-    if (updateError) {
-        console.error('❌ いいね数更新エラー:', updateError);
-        return res.status(500).json({ error: updateError.message });
-    }
-
-    console.log(`✅ いいね完了: post_id=${postId}`);
-    res.json({ success: true });
 });
 
-// 【API】いいね削除
-app.delete('/api/posts/:postId/like', checkAuth, async (req, res) => {
-    const { postId } = req.params;
+// 【API】リポスト Toggle
+app.post('/api/posts/:id/repost', checkAuth, async (req, res) => {
+    const postId = req.params.id;
     const userId = req.user.id;
 
-    console.log(`💔 いいね削除試行: post_id=${postId}, user_id=${userId}`);
+    const { data: existing } = await supabase.from('reposts').select('id').eq('post_id', postId).eq('user_id', userId).single();
 
-    // いいねを削除
-    const { error: deleteError } = await supabase
-        .from('likes')
-        .delete()
-        .eq('post_id', postId)
-        .eq('user_id', userId);
-
-    if (deleteError) {
-        console.error('❌ いいね削除エラー:', deleteError);
-        return res.status(500).json({ error: deleteError.message });
+    if (existing) {
+        await supabase.from('reposts').delete().eq('id', existing.id);
+        const { data: post } = await supabase.from('posts').select('reposts_count').eq('id', postId).single();
+        const newCount = Math.max(0, (post.reposts_count || 1) - 1);
+        await supabase.from('posts').update({ reposts_count: newCount }).eq('id', postId);
+        res.json({ reposted: false, reposts_count: newCount });
+    } else {
+        await supabase.from('reposts').insert([{ post_id: postId, user_id: userId }]);
+        const { data: post } = await supabase.from('posts').select('reposts_count').eq('id', postId).single();
+        const newCount = (post.reposts_count || 0) + 1;
+        await supabase.from('posts').update({ reposts_count: newCount }).eq('id', postId);
+        res.json({ reposted: true, reposts_count: newCount });
     }
-
-    // いいね数をデクリメント
-    const { error: updateError } = await supabase
-        .from('posts')
-        .update({ like_count: supabase.raw('like_count - 1') })
-        .eq('id', postId);
-
-    if (updateError) {
-        console.error('❌ いいね数更新エラー:', updateError);
-        return res.status(500).json({ error: updateError.message });
-    }
-
-    console.log(`✅ いいね削除完了: post_id=${postId}`);
-    res.json({ success: true });
 });
 
-// 【API】リポスト追加
-app.post('/api/posts/:postId/repost', checkAuth, async (req, res) => {
-    const { postId } = req.params;
-    const userId = req.user.id;
+// 【API】特定ユーザーのプロフィール取得
+app.get('/api/users/:username', checkAuth, async (req, res) => {
+    const { data: targetUser, error } = await supabase
+        .from('users')
+        .select('id, username, avatar_url, banner_url, bio, website, birthday, created_at')
+        .eq('username', req.params.username)
+        .single();
 
-    console.log(`🔄 リポスト試行: post_id=${postId}, user_id=${userId}`);
+    if (error || !targetUser) return res.status(404).json({ error: 'ユーザーが見つかりません' });
 
-    const { error: insertError } = await supabase
-        .from('reposts')
-        .insert([{ post_id: postId, user_id: userId }]);
-
-    if (insertError) {
-        if (insertError.code === '23505') {
-            return res.status(400).json({ error: 'すでにリポストしています' });
-        }
-        console.error('❌ リポスト追加エラー:', insertError);
-        return res.status(500).json({ error: insertError.message });
-    }
-
-    const { error: updateError } = await supabase
+    // 対象ユーザーの投稿一覧を取得
+    const { data: userPosts } = await supabase
         .from('posts')
-        .update({ repost_count: supabase.raw('repost_count + 1') })
-        .eq('id', postId);
+        .select(`*, users:user_id (id, username, avatar_url)`)
+        .eq('user_id', targetUser.id)
+        .order('created_at', { ascending: false });
 
-    if (updateError) {
-        console.error('❌ リポスト数更新エラー:', updateError);
-        return res.status(500).json({ error: updateError.message });
-    }
-
-    console.log(`✅ リポスト完了: post_id=${postId}`);
-    res.json({ success: true });
-});
-
-// 【API】リポスト削除
-app.delete('/api/posts/:postId/repost', checkAuth, async (req, res) => {
-    const { postId } = req.params;
-    const userId = req.user.id;
-
-    console.log(`🔄 リポスト削除試行: post_id=${postId}, user_id=${userId}`);
-
-    const { error: deleteError } = await supabase
-        .from('reposts')
-        .delete()
-        .eq('post_id', postId)
-        .eq('user_id', userId);
-
-    if (deleteError) {
-        console.error('❌ リポスト削除エラー:', deleteError);
-        return res.status(500).json({ error: deleteError.message });
-    }
-
-    const { error: updateError } = await supabase
-        .from('posts')
-        .update({ repost_count: supabase.raw('repost_count - 1') })
-        .eq('id', postId);
-
-    if (updateError) {
-        console.error('❌ リポスト数更新エラー:', updateError);
-        return res.status(500).json({ error: updateError.message });
-    }
-
-    console.log(`✅ リポスト削除完了: post_id=${postId}`);
-    res.json({ success: true });
-});
-
-// 【API】プロフィール取得
-app.get('/api/users/:username', async (req, res) => {
-    const { username } = req.params;
-
-    try {
-        const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('id, username, created_at')
-            .eq('username', username);
-
-        if (userError || !userData || userData.length === 0) {
-            return res.status(404).json({ error: 'ユーザーが見つかりません' });
-        }
-
-        const user = userData[0];
-
-        const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('bio, avatar_url, cover_url, followers_count, following_count')
-            .eq('user_id', user.id);
-
-        if (profileError) {
-            console.error('❌ プロフィール取得エラー:', profileError);
-            return res.status(500).json({ error: profileError.message });
-        }
-
-        const profile = profileData && profileData.length > 0 ? profileData[0] : {};
-
-        // ユーザーの投稿数を取得
-        const { data: postsData, error: postsError } = await supabase
-            .from('posts')
-            .select('id')
-            .eq('user_id', user.id);
-
-        const postCount = postsData ? postsData.length : 0;
-
-        res.json({
-            id: user.id,
-            username: user.username,
-            created_at: user.created_at,
-            bio: profile.bio || '',
-            avatar_url: profile.avatar_url || null,
-            cover_url: profile.cover_url || null,
-            followers_count: profile.followers_count || 0,
-            following_count: profile.following_count || 0,
-            post_count: postCount
-        });
-    } catch (err) {
-        console.error('❌ エラー:', err);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+    res.json({ user: targetUser, posts: userPosts || [] });
 });
 
 // 【API】プロフィール更新
-app.put('/api/users/:userId/profile', checkAuth, async (req, res) => {
-    const { userId } = req.params;
-    const { bio, avatar_url, cover_url } = req.body;
+app.post('/api/profile/update', checkAuth, async (req, res) => {
+    const { avatar_url, banner_url, bio, website, birthday } = req.body;
+    
+    const { error } = await supabase
+        .from('users')
+        .update({ avatar_url, banner_url, bio, website, birthday })
+        .eq('id', req.user.id);
 
-    // 本人確認
-    if (req.user.id !== userId) {
-        return res.status(403).json({ error: '他のユーザーのプロフィールは編集できません' });
-    }
-
-    try {
-        const { error } = await supabase
-            .from('profiles')
-            .update({ bio, avatar_url, cover_url })
-            .eq('user_id', userId);
-
-        if (error) {
-            console.error('❌ プロフィール更新エラー:', error);
-            return res.status(500).json({ error: error.message });
-        }
-
-        console.log(`✅ プロフィール更新完了: user_id=${userId}`);
-        res.json({ success: true });
-    } catch (err) {
-        console.error('❌ エラー:', err);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// 【API】現在のユーザー情報取得
-app.get('/api/user-info', checkAuth, (req, res) => {
-    res.json({
-        id: req.user.id,
-        username: req.user.username,
-        email: req.user.email
-    });
+    if (error) return res.status(500).send('更新エラー');
+    res.redirect('/profile.html');
 });
 
 // 【API】ログアウト
 app.get('/api/logout', (req, res) => {
-    console.log('🚪 ログアウト実行');
     res.clearCookie('sasuty_user_id');
     res.redirect('/login.html');
 });
@@ -477,7 +261,9 @@ app.get('/', checkAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`サーバー起動: http://localhost:${PORT}`);
+app.get('/profile.html', checkAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'profile.html'));
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
