@@ -1,85 +1,103 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const cookieParser = require('cookie-parser');
+const bcrypt = require('bcrypt');
 const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-// ミドルウェアの設定
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 静的ファイルの配信設定
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/layout', express.static(path.join(__dirname, 'layout')));
 
-// 認証状態をチェックするミドルウェア
+// 【カスタム認証ミドルウェア】クッキーのユーザーIDからユーザー実在チェック
 const checkAuth = async (req, res, next) => {
-    const token = req.cookies.sb_access_token;
-    if (!token) {
+    const userId = req.cookies.sasuty_user_id;
+    if (!userId) {
         return res.redirect('/login.html');
     }
     
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // データベースからユーザーを取得
+    const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
     if (error || !user) {
-        res.clearCookie('sb_access_token');
+        res.clearCookie('sasuty_user_id');
         return res.redirect('/login.html');
     }
     
-    req.user = user;
+    req.user = user; // 後続の処理でユーザー情報を使えるように保持
     next();
 };
 
-// 【API】新規登録 (ユーザー名 + パスワード)
+// 【API】独自 新規登録 (usersテーブルへ直接保存)
 app.post('/api/signup', async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).send('ユーザー名とパスワードを入力してください。');
+    const { username, email, password } = req.body;
+    if (!username || !email || !password) {
+        return res.status(400).send('すべての項目を入力してください。');
     }
-    
-    // Supabase Authに合わせるため、内部で仮のメールアドレスを生成
-    const fakeEmail = `${username}@sasuty.local`;
 
-    const { data, error } = await supabase.auth.signUp({
-        email: fakeEmail,
-        password: password,
-        options: {
-            data: { display_name: username }
+    try {
+        // パスワードをハッシュ化（10ソルトハッシュ）
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // 自前のusersテーブルへインサート
+        const { data, error } = await supabase
+            .from('users')
+            .insert([
+                { username, email, password_hash: hashedPassword }
+            ]);
+
+        if (error) {
+            if (error.code === '23505') { // PostgreSQLの重複エラーコード
+                return res.status(400).send('エラー: そのユーザー名またはメールアドレスは既に登録されています。');
+            }
+            return res.status(400).send(`新規登録エラー: ${error.message}`);
         }
-    });
 
-    if (error) {
-        return res.status(400).send(`新規登録エラー: ${error.message}`);
+        res.redirect('/login.html');
+    } catch (err) {
+        res.status(500).send('サーバー内部エラーが発生しました。');
     }
-    res.redirect('/login.html');
 });
 
-// 【API】ログイン
+// 【API】独自 ログイン
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
         return res.status(400).send('ユーザー名とパスワードを入力してください。');
     }
 
-    const fakeEmail = `${username}@sasuty.local`;
+    // ユーザー名でデータベースを検索
+    const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .single();
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email: fakeEmail,
-        password: password
-    });
+    if (error || !user) {
+        return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
+    }
 
-    if (error) {
-        return res.status(400).send(`ログインエラー: ${error.message}`);
+    // パスワードの照合
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) {
+        return res.status(400).send('ログインエラー: ユーザー名またはパスワードが違います。');
     }
     
-    // クッキーにトークンを保存
-    res.cookie('sb_access_token', data.session.access_token, {
+    // クッキーにログインの証拠としてユーザーIDを保存
+    res.cookie('sasuty_user_id', user.id, {
         httpOnly: true,
-        secure: false, // 本番環境(HTTPS)ではtrueを推奨
-        maxAge: 1000 * 60 * 60 * 24 // 1日間有効
+        secure: false,
+        maxAge: 1000 * 60 * 60 * 24 // 1日間
     });
     
     res.redirect('/');
@@ -105,14 +123,12 @@ app.post('/api/posts', checkAuth, async (req, res) => {
         return res.status(400).send('投稿内容が空です。');
     }
 
-    const username = req.user.user_metadata.display_name || '名無し';
-
     const { error } = await supabase
         .from('posts')
         .insert([
             { 
                 user_id: req.user.id, 
-                username: username, 
+                username: req.user.username, 
                 content: content 
             }
         ]);
@@ -125,17 +141,16 @@ app.post('/api/posts', checkAuth, async (req, res) => {
 
 // 【API】ログアウト
 app.get('/api/logout', (req, res) => {
-    res.clearCookie('sb_access_token');
+    res.clearCookie('sasuty_user_id');
     res.redirect('/login.html');
 });
 
-// ルートアクセス時の認証制御
+// ルートアクセス制御
 app.get('/', checkAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// サーバー起動
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`[sasuty] サーバーが正常に起動しました: http://localhost:${PORT}`);
+    console.log(`[sasuty] 独自テーブル認証版サーバー起動: http://localhost:${PORT}`);
 });
