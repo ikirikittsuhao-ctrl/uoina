@@ -3,78 +3,249 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>sasuty - ホーム</title>
+    <title>ホーム / X</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; margin: 0; padding-left: 70px; }
-        header { background: white; padding: 15px 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 90; }
-        header h1 { margin: 0; color: #1877f2; font-size: 24px; }
-        .logout-btn { color: #65676b; text-decoration: none; font-size: 14px; font-weight: bold; }
-        .logout-btn:hover { color: #1877f2; }
-        .timeline { max-width: 500px; margin: 20px auto; padding: 0 15px; }
-        .post-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; border: 1px solid #e4e6eb; }
-        .post-user { font-weight: bold; color: #1c1e21; margin-bottom: 5px; font-size: 15px; }
-        .post-content { color: #050505; word-break: break-all; font-size: 15px; line-height: 1.4; }
-        .post-time { font-size: 12px; color: #65676b; margin-top: 10px; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding-left: 88px;
+        }
+
+        @media (min-width: 1280px) {
+            body {
+                padding-left: 275px;
+            }
+        }
+
+        .main-layout {
+            max-width: 600px;
+            margin: 0 auto;
+            border-left: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            min-height: 100vh;
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px;
+            z-index: 100;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            header {
+                background-color: rgba(0, 0, 0, 0.85);
+            }
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .tweet-card {
+            display: flex;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            gap: 12px;
+            transition: background-color 0.2s;
+        }
+
+        .tweet-card:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #ccc;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .tweet-body {
+            flex: 1;
+        }
+
+        .tweet-header {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+
+        .user-name {
+            font-weight: bold;
+            text-decoration: none;
+            color: var(--text-color);
+        }
+
+        .user-name:hover {
+            text-decoration: underline;
+        }
+
+        .post-time {
+            color: var(--sub-text-color);
+            font-size: 14px;
+        }
+
+        .tweet-content {
+            font-size: 15px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* アクションボタン群 (いいね・リポスト・閲覧数) */
+        .tweet-actions {
+            display: flex;
+            justify-content: space-between;
+            max-width: 400px;
+            margin-top: 12px;
+            color: var(--sub-text-color);
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: none;
+            border: none;
+            color: var(--sub-text-color);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 6px;
+            border-radius: 9999px;
+            transition: color 0.2s, background-color 0.2s;
+        }
+
+        .action-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .action-btn.repost-btn:hover {
+            color: #00ba7c;
+            background-color: rgba(0, 186, 124, 0.1);
+        }
+
+        .action-btn.repost-btn.active {
+            color: #00ba7c;
+        }
+
+        .action-btn.like-btn:hover {
+            color: #f91880;
+            background-color: rgba(249, 24, 128, 0.1);
+        }
+
+        .action-btn.like-btn.active {
+            color: #f91880;
+        }
+
+        .action-btn.like-btn.active svg {
+            fill: #f91880;
+        }
+
+        .views-count {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            padding: 6px;
+        }
+
+        .views-count svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
     </style>
 </head>
 <body>
 
-    <!-- 外部サイドバー読み込み用コンテナ -->
     <div id="sidebar-container"></div>
 
-    <header>
-        <h1>sasuty</h1>
-        <a href="/api/logout" class="logout-btn">ログアウト</a>
-    </header>
+    <div class="main-layout">
+        <header>
+            <h1>ホーム</h1>
+        </header>
 
-    <div class="timeline" id="timeline">
-        <p style="text-align:center; color:#65676b;">読み込み中...</p>
+        <div id="timeline">
+            <p style="text-align:center; color: var(--sub-text-color); margin-top: 40px;">読み込み中...</p>
+        </div>
     </div>
 
     <script>
-        // サイドバーパーツをインクルード
         async function includeSidebar() {
             try {
                 const res = await fetch('/layout/sidebar.html');
                 if (res.ok) {
                     document.getElementById('sidebar-container').innerHTML = await res.text();
-                } else {
-                    console.error('サイドバーの取得に失敗しました');
                 }
             } catch (err) {
-                console.error('通信エラー:', err);
+                console.error('サイドバー取得エラー:', err);
             }
         }
 
-        // 投稿データを取得してレンダリング
         async function loadPosts() {
             try {
                 const res = await fetch('/api/posts');
-                if (!res.ok) throw new Error('タイムラインの取得失敗');
+                if (!res.ok) throw new Error('タイムライン取得失敗');
                 
                 const posts = await res.json();
                 const timeline = document.getElementById('timeline');
                 
                 if (posts.length === 0) {
-                    timeline.innerHTML = '<p style="text-align:center; color:#65676b; margin-top: 40px;">まだ投稿がありません。</p>';
+                    timeline.innerHTML = '<p style="text-align:center; color: var(--sub-text-color); margin-top: 40px;">まだ投稿がありません。</p>';
                     return;
                 }
 
                 timeline.innerHTML = posts.map(post => {
-                    // 安全のためにHTML文字を簡易エスケープ
+                    const avatarSrc = post.users && post.users.avatar_url
+                        ? `/api/proxy-image?url=${encodeURIComponent(post.users.avatar_url)}`
+                        : 'https://abs.twimg.com/sticky/default_profile_images/default_profile_400x400.png';
+
                     const safeContent = post.content
-                        .replace(/&/g, "&amp;")
-                        .replace(/</g, "&lt;")
-                        .replace(/>/g, "&gt;")
-                        .replace(/"/g, "&quot;")
-                        .replace(/'/g, "&#039;")
-                        .replace(/\n/g, '<br>');
+                        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;").replace(/'/g, "&#039;").replace(/\n/g, '<br>');
 
                     return `
-                        <div class="post-card">
-                            <div class="post-user">@${post.username}</div>
-                            <div class="post-content">${safeContent}</div>
-                            <div class="post-time">${new Date(post.created_at).toLocaleString('ja-JP')}</div>
+                        <div class="tweet-card" id="post-${post.id}">
+                            <img src="${avatarSrc}" class="avatar" alt="avatar">
+                            <div class="tweet-body">
+                                <div class="tweet-header">
+                                    <a href="/profile.html?user=${post.username}" class="user-name">@${post.username}</a>
+                                    <span class="post-time">· ${new Date(post.created_at).toLocaleDateString('ja-JP')}</span>
+                                </div>
+                                <div class="tweet-content">${safeContent}</div>
+                                
+                                <div class="tweet-actions">
+                                    <!-- リポスト -->
+                                    <button class="action-btn repost-btn ${post.isReposted ? 'active' : ''}" onclick="toggleRepost('${post.id}')">
+                                        <svg viewBox="0 0 24 24"><path d="M4.5 3.88l4.4 4.4-1.41 1.41L4.71 6.91V17H17v2H2.71V6.91l-2.8 2.78L-1.5 8.28l4.4-4.4zM19.5 20.12l-4.4-4.4 1.41-1.41 2.78 2.78V7H7V5h14.29v10.09l2.8-2.78 1.41 1.41-4.4 4.4z"></path></svg>
+                                        <span class="repost-count">${post.reposts_count || 0}</span>
+                                    </button>
+
+                                    <!-- いいね -->
+                                    <button class="action-btn like-btn ${post.isLiked ? 'active' : ''}" onclick="toggleLike('${post.id}')">
+                                        <svg viewBox="0 0 24 24"><path d="M12 21.638h-.014C9.403 21.59 1.95 14.851 1.95 8.478 1.95 5.172 4.622 2.5 7.928 2.5c1.785 0 3.47.8 4.622 2.18C13.698 3.3 15.383 2.5 17.168 2.5c3.306 0 5.978 2.672 5.978 5.978 0 6.373-7.453 13.112-10.036 13.16H12z"></path></svg>
+                                        <span class="like-count">${post.likes_count || 0}</span>
+                                    </button>
+
+                                    <!-- 閲覧回数 -->
+                                    <div class="views-count" title="表示回数">
+                                        <svg viewBox="0 0 24 24"><path d="M8.75 21V3h2v18h-2zM18 21V8.5h2V21h-2zM4 21v-6h2v6H4zM13.25 21V12h2v9h-2z"></path></svg>
+                                        <span>${post.views_count || 0}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     `;
                 }).join('');
@@ -83,7 +254,34 @@
             }
         }
 
-        // 初期実行
+        async function toggleLike(postId) {
+            const res = await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                const card = document.getElementById(`post-${postId}`);
+                const btn = card.querySelector('.like-btn');
+                const count = card.querySelector('.like-count');
+                
+                count.textContent = data.likes_count;
+                if (data.liked) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+        }
+
+        async function toggleRepost(postId) {
+            const res = await fetch(`/api/posts/${postId}/repost`, { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                const card = document.getElementById(`post-${postId}`);
+                const btn = card.querySelector('.repost-btn');
+                const count = card.querySelector('.repost-count');
+                
+                count.textContent = data.reposts_count;
+                if (data.reposted) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+        }
+
         includeSidebar();
         loadPosts();
     </script>
