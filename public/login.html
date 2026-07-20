@@ -8,12 +8,13 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin: 0; }
         .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 300px; }
         h2 { text-align: center; color: #1877f2; margin-top: 0; margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
         input:focus { border-color: #1877f2; outline: none; }
         button { width: 100%; padding: 12px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; font-size: 14px; }
         button:hover { background: #166fe5; }
         .toggle { text-align: center; margin-top: 20px; font-size: 14px; color: #1877f2; cursor: pointer; }
         .toggle:hover { text-decoration: underline; }
+        .email-field { display: none; } /* 初期状態（ログイン時）はメール非表示 */
     </style>
 </head>
 <body>
@@ -21,7 +22,8 @@
         <h2 id="title">sasuty ログイン</h2>
         <form id="authForm" action="/api/login" method="POST">
             <input type="text" name="username" placeholder="ユーザー名" required autocomplete="username">
-            <input type="password" name="password" placeholder="パスワード (6文字以上)" required autocomplete="current-password">
+            <input type="email" name="email" id="emailInput" placeholder="メールアドレス (Gmailなど)" class="email-field" autocomplete="email">
+            <input type="password" name="password" placeholder="パスワード" required autocomplete="current-password">
             <button type="submit" id="submitBtn">ログイン</button>
         </form>
         <div class="toggle" id="toggleMode">新規登録はこちら</div>
@@ -32,6 +34,7 @@
         const form = document.getElementById('authForm');
         const submitBtn = document.getElementById('submitBtn');
         const toggleMode = document.getElementById('toggleMode');
+        const emailInput = document.getElementById('emailInput');
         let isLogin = true;
 
         toggleMode.addEventListener('click', () => {
@@ -41,11 +44,16 @@
                 form.action = '/api/login';
                 submitBtn.innerText = 'ログイン';
                 toggleMode.innerText = '新規登録はこちら';
+                emailInput.style.display = 'none';
+                emailInput.removeAttribute('required');
             } else {
                 title.innerText = 'sasuty 新規登録';
                 form.action = '/api/signup';
                 submitBtn.innerText = 'アカウント作成';
                 toggleMode.innerText = 'ログインはこちら';
+                emailInput.style.with = '100%';
+                emailInput.style.display = 'block';
+                emailInput.setAttribute('required', 'required');
             }
         });
     </script>
